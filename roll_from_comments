@@ -72,8 +72,6 @@ def open_space_from_uids(uids):
 
 
 def roll_from_comments(url, num=1):
-    if args.num:
-        num = int(args.num)
     comments = get_comments(url)
     uids = list(set(map(comments_filter, comments)))
 
@@ -96,13 +94,15 @@ def roll_from_comments(url, num=1):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(description="b站评论区抽奖脚本")
     parser.add_argument('url', help="视频的链接")
-    parser.add_argument('--num', '-n', help="指定获奖的人数, 默认为1")
+    parser.add_argument('--num', '-n', type=int, help="指定获奖的人数, 默认为1")
     args = parser.parse_args()
 
     url = args.url
-    lucky_uids = roll_from_comments(url)
+    num = args.num or 1
+
+    lucky_uids = roll_from_comments(url, num)
 
     if input("是否查看TA的b站空间(按y确定):") == "y":
         open_space_from_uids(lucky_uids)
