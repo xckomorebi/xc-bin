@@ -3,18 +3,15 @@ import ujson
 import sqlite3
 import bilibili_api as bi
 
+def get_old_followers() -> list:
+    return old_followers
 
-def get_followers(uid: str) -> list:
-    bi.common.get_comments
+def diff_followers(followers: list, old_follwors: list):
+    new_follow = list(set(followers) - set(old_follwors))
+    new_unfollow = list(set(old_followers) - set(followers))
+    return new_follow, new_unfollow
 
-
-def get_old_followers(uid: ):
-    raise NotImplementedError
-
-def diff_followers():
-    raise NotImplementedError
-
-def write_into_db():
+def write_into_db(conn, new_follow, new_unfollow) -> None:
     raise NotImplementedError
 
 def read_old_from_db() -> list:
@@ -28,7 +25,11 @@ if __name__ == "__main__":
         xc_info = ujson.load(f)
 
     uid = xc_info.get('uid')
+    sessdata = xc_info.get('sessdata')
 
-    followers = get_followers(uid)
+    followers = bi.user.get_followers(uid=uid, sessdata=sessdata)
+    old_followers = get_old_followers()
+    
+
 
     
