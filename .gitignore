@@ -2,5 +2,7 @@
 .vscode
 .idea
 *.db
+*.log
+xc_info.json
 
 venv
