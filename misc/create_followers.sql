@@ -3,7 +3,7 @@ CREATE TABLE follower(
     followers_id TEXT,
     new_followers_id TEXT,
     new_unfollowers_id TEXT,
-    num_followers int
+    num_followers INT,
     update_at TIMESTAMP NOT NULL DEFAULT CURRENT_DATE
 );
 
