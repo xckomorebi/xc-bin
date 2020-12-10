@@ -1,3 +1,5 @@
+#! /Users/bytedance/.pyenv/shims/python
+
 import os
 import ujson
 import sqlite3
@@ -7,7 +9,7 @@ import logging
 # ugly, but it works
 
 logger = logging.getLogger("fan_tracer")
-logging.basicConfig(filename='resource/fan_tracer.log', filemode='a',
+logging.basicConfig(filename='bin/resource/fan_tracer.log', filemode='a',
                     level=logging.INFO, format = '%(asctime)s - %(levelname)s: %(message)s',\
                      datefmt = '%m/%d/%Y %H:%M:%S' )
 
@@ -94,8 +96,8 @@ def send_mail(new_unfollow_name):
 
 if __name__ == "__main__":
     try:
-        resource_dir = os.getcwd()
-        with open(os.path.join(resource_dir,'resource/xc_info.json')) as f:
+        # resource_dir = os.getcwd()
+        with open('bin/resource/xc_info.json') as f:
             xc_info = ujson.load(f)
         uid = xc_info.get('uid')
         sessdata = xc_info.get('sessdata')
@@ -104,7 +106,7 @@ if __name__ == "__main__":
         resp = bi.user.get_followers(uid=uid, verify=verify)
         num = len(resp)
 
-        conn = sqlite3.connect(os.path.join(resource_dir,'resource/followers.db'))
+        conn = sqlite3.connect('bin/resource/followers.db')
         c = conn.cursor()
 
         followers_raw, followers = followers_filter(resp)
