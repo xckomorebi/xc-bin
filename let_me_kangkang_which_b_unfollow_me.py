@@ -1,5 +1,3 @@
-#! /Users/bytedance/.pyenv/shims/python
-
 import os
 import ujson
 import sqlite3
