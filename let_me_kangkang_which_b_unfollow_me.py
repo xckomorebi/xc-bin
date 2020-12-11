@@ -4,6 +4,8 @@ import sqlite3
 import bilibili_api as bi
 import logging
 
+from pync import notify
+
 # ugly, but it works
 
 logger = logging.getLogger("fan_tracer")
@@ -107,22 +109,30 @@ if __name__ == "__main__":
         conn = sqlite3.connect('bin/resource/followers.db')
         c = conn.cursor()
 
+        msg = ""
+
         followers_raw, followers = followers_filter(resp)
         old_followers = get_old_followers(c)
         new_follow, new_unfollow = diff_followers(followers, old_followers)
 
         if new_unfollow:
             new_unfollow_name = handle_unfollower(c, new_unfollow)
+            msg += f'今日取关: {new_unfollow_name}'
             try:
                 send_mail(new_unfollow_name)
             except Exception as e:
                 logger.error('Send email failed', exc_info=e)
 
         new_follow_name = handle_raw_follower(c, followers_raw, new_follow)
+        if new_follow:
+            msg += f'今日粉丝: {new_follow_name}\n'
 
         if new_follow or new_unfollow:
             write_into_db(c, followers, new_follow, new_unfollow, num)
             logger.info('Cronjob success, check your email')
+
+            notify(msg, title= 'b站粉丝变动', appIcon="bin/resource/bilibili.png", open='https://www.bilibili.com')
+
         else:
             logger.info('Cronjob success, nothing has changed')
 
