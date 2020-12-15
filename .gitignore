@@ -4,5 +4,6 @@
 *.db
 *.log
 xc_info.json
+__pycache__
 
 venv
