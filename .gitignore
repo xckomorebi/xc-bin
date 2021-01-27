@@ -7,3 +7,5 @@ xc_info.json
 __pycache__
 
 venv
+*.csv
+test.py
