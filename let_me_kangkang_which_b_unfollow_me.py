@@ -9,7 +9,7 @@ from pync import notify
 # ugly, but it works
 
 logger = logging.getLogger("fan_tracer")
-logging.basicConfig(filename='/Users/bytedance/bin/resource/fan_tracer.log', filemode='a',
+logging.basicConfig(filename='/Users/xuchen/bin/resource/fan_tracer.log', filemode='a',
                     level=logging.INFO, format = '%(asctime)s - %(levelname)s: %(message)s',\
                      datefmt = '%m/%d/%Y %H:%M:%S' )
 
@@ -98,16 +98,16 @@ def send_mail(new_unfollow_name):
 if __name__ == "__main__":
     try:
         # resource_dir = os.getcwd()
-        with open('/Users/bytedance/bin/resource/xc_info.json') as f:
+        with open('/Users/xuchen/bin/resource/xc_info.json') as f:
             xc_info = ujson.load(f)
         uid = xc_info.get('uid')
         sessdata = xc_info.get('sessdata')
         verify = bi.Verify(sessdata=sessdata)
         
-        resp = bi.user.get_followers(uid=uid, verify=verify)
+        resp = list(bi.user.get_followers_g(uid=uid, verify=verify))
         num = len(resp)
 
-        conn = sqlite3.connect('/Users/bytedance/bin/resource/followers.db')
+        conn = sqlite3.connect('/Users/xuchen/bin/resource/followers.db')
         c = conn.cursor()
 
         msg = ""
@@ -132,7 +132,7 @@ if __name__ == "__main__":
             write_into_db(c, followers, new_follow, new_unfollow, num)
             logger.info('Cronjob success, check your email')
 
-            notify(msg, title= 'b站粉丝变动', appIcon="/Users/bytedance/bin/resource/bilibili.png", open='https://www.bilibili.com')
+            notify(msg, title= 'b站粉丝变动', appIcon="/Users/xuchen/bin/resource/bilibili.png", open='https://www.bilibili.com')
 
         else:
             logger.info('Cronjob success, nothing has changed')
