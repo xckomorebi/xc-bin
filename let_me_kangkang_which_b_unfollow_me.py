@@ -118,13 +118,15 @@ if __name__ == "__main__":
 
         if new_unfollow:
             new_unfollow_name = handle_unfollower(c, new_unfollow)
+            logger.info(f'New unfollower: {",".join(new_unfollow_name)}')
             msg += f'今日取关: {new_unfollow_name}\n'
-            try:
-                send_mail(new_unfollow_name)
-            except Exception as e:
-                logger.error('Send email failed', exc_info=e)
+            # try:
+            #     send_mail(new_unfollow_name)
+            # except Exception as e:
+            #     logger.error('Send email failed', exc_info=e)
 
         new_follow_name = handle_raw_follower(c, followers_raw, new_follow)
+        logger.info(f'New follower: {",".join(new_follow_name)}')
         if new_follow:
             msg += f'今日粉丝: {new_follow_name}\n'
 
