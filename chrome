@@ -6,20 +6,48 @@ import re
 import subprocess
 import sys
 
-JSON_PATH = "resource/url_dict.json"
+PATH = os.path.dirname(os.path.realpath(__file__))
+JSON_PATH = os.path.join(PATH, "resource/url_dict.json")
+
+DEFAULT = "courseworks2.columbia.edu"
 
 
 def format_url(url):
-    if not re.match('(?:http|ftp|https)://', url):
-        return 'http://{}'.format(url)
+    if not re.match("(?:http|ftp|https)://", url):
+        url = "http://{}".format(url)
+    if not "." in url:
+        url = url + ".com"
     return url
 
 
+def load_json():
+    if not os.path.exists(JSON_PATH):
+        url_dict = dict()
+    else:
+        with open(JSON_PATH) as f:
+            url_dict = json.load(f)
+    return url_dict
+
+
+def save_json(url_dict):
+    with open(JSON_PATH, "w") as f:
+        json.dump(url_dict, f, indent=4)
+
+
 def get_args():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--add", "-a", dest="add", nargs=2)
-    parser.add_argument("url_list", nargs=argparse.REMAINDER)
-    parser.add_argument("--list", "-l", action=argparse.BooleanOptionalAction)
+    parser = argparse.ArgumentParser(
+        description="open urls or shortcuts with Google Chrome")
+
+    parser.add_argument("--add", "-a", nargs=2, metavar=("K", "V"),
+                        help="add a shortcut (key value pair)")
+    parser.add_argument("--list", "-l", action="store_true",
+                        help="list all shortcuts")
+    parser.add_argument("--delete", "-d", nargs=1, metavar='K',
+                        help="delete 1 shortcut")
+    parser.add_argument("--incognito", "-i",
+                        action="store_true", help="enable incognito mode")
+    parser.add_argument("url_list", nargs=argparse.REMAINDER,
+                        help="an array of urls")
     args = parser.parse_args()
     return args
 
@@ -27,11 +55,7 @@ def get_args():
 if __name__ == "__main__":
     args = get_args()
 
-    if not os.path.exists(JSON_PATH):
-        url_dict = dict()
-    else:
-        with open(JSON_PATH) as f:
-            url_dict = json.load(f)
+    url_dict = load_json()
 
     if args.list:
         print('{:>8} {:>8}'.format("shortcut", "url"))
@@ -41,14 +65,23 @@ if __name__ == "__main__":
 
     if args.add:
         url_dict[args.add[0]] = args.add[1]
-        with open(JSON_PATH, 'w') as f:
-            json.dump(url_dict, f)
+        save_json(url_dict)
+        if not args.url_list:
+            sys.exit(0)
 
-    if args.url_list:
-        for url in args.url_list:
-            _url = format_url(url_dict.get(url, url))
-            subprocess.run(["open", "-a", "Google Chrome", _url])
-    else:
-        if not args.add:
-            subprocess.run(["open", "-a", "Google Chrome",
-                           "https://courseworks2.columbia.edu"])
+    if args.delete:
+        url_dict.pop(args.delete[0], None)
+        save_json(url_dict)
+        sys.exit(0)
+
+    command = ["/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"]
+
+    if args.incognito:
+        command += ["-incognito"]
+
+    url_list = map(lambda u: format_url(url_dict.get(u, u)), args.url_list)
+    url_list = url_list if url_list else [DEFAULT]
+
+    command += url_list
+
+    subprocess.run(command)
