@@ -3,7 +3,7 @@
 .idea
 *.db
 *.log
-xc_info.json
+*.json
 __pycache__
 
 venv
