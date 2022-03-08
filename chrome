@@ -5,11 +5,15 @@ import os
 import re
 import subprocess
 import sys
+import urllib.parse
+
 
 PATH = os.path.dirname(os.path.realpath(__file__))
 JSON_PATH = os.path.join(PATH, "resource/url_dict.json")
 
+EXE = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
 DEFAULT = "courseworks2.columbia.edu"
+QUERY = "google.com/search?q=%s"
 
 
 def format_url(url):
@@ -48,6 +52,8 @@ def get_args():
                         action="store_true", help="enable incognito mode")
     parser.add_argument("url_list", nargs=argparse.REMAINDER,
                         help="an array of urls")
+    parser.add_argument("--query", "-q", action="store_true",
+                        help="search keywords in google")
     args = parser.parse_args()
     return args
 
@@ -74,13 +80,17 @@ if __name__ == "__main__":
         save_json(url_dict)
         sys.exit(0)
 
-    command = ["/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"]
+    command = [EXE]
 
     if args.incognito:
         command += ["-incognito"]
 
-    url_list = map(lambda u: format_url(url_dict.get(u, u)), args.url_list)
-    url_list = url_list if url_list else [DEFAULT]
+    if args.query:
+        url = QUERY % urllib.parse.quote(" ".join(args.url_list))
+        url_list = [url]
+    else:
+        url_list = map(lambda u: format_url(url_dict.get(u, u)), args.url_list)
+        url_list = url_list if url_list else [DEFAULT]
 
     command += url_list
 
