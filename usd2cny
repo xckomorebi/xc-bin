@@ -1,0 +1,5 @@
+#! /bin/bash
+
+url="https://min-api.cryptocompare.com/data/price?fsym=USD&tsyms=CNY"
+rate=$(curl -s "$url" | python3 -c "import sys, json; print(json.load(sys.stdin).get('CNY'))")
+echo "scale=4; $1 * $rate" | bc
