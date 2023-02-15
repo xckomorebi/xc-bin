@@ -1,0 +1,11 @@
+#! /bin/sh
+
+osascript -e 'tell application "System Preferences"
+	reveal pane id "com.apple.preference.dock"
+end tell
+delay 0.4
+tell application "System Events" to tell process "System Preferences" to tell window "Dock & Menu Bar"
+	click checkbox "Automatically hide and show the menu bar on desktop"
+end tell
+delay 0.2
+quit application "System Preferences"'
