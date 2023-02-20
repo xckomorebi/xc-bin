@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+
+alacritty_config_path=~/.config/alacritty/alacritty.yml
+
+if [ -h $alacritty_config_path ]; then
+  alacritty_config_path=$(readlink $alacritty_config_path)
+fi
+
+[[ ! -f $alacritty_config_path ]] && \
+    osascript -e 'display notification "alacritty.yml does not exist" with title "alacritty"' && exit 0
+
+
+## Fetch background_opacity from alacritty.yml
+opacity=$(awk '$1 == "opacity:" {print $2; exit}' \
+    $alacritty_config_path)
+
+## Assign toggle opacity value
+case $opacity in
+  1)
+    toggle_opacity=0.64
+    ;;
+  0.0)
+    exit 0
+    ;;
+  *)
+    toggle_opacity=1
+    ;;
+esac
+
+## Replace opacity value in alacritty.yml
+sed -i -- "s/opacity: $opacity/opacity: $toggle_opacity/" \
+   $alacritty_config_path 
