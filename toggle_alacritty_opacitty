@@ -28,5 +28,5 @@ case $opacity in
 esac
 
 ## Replace opacity value in alacritty.yml
-sed -i -- "s/opacity: $opacity/opacity: $toggle_opacity/" \
-   $alacritty_config_path 
+sed -i '' "s/opacity: $opacity/opacity: $toggle_opacity/" \
+   $alacritty_config_path
