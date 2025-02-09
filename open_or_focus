@@ -1,0 +1,31 @@
+#!/bin/bash
+
+case "$1" in
+    alacritty)
+        PROGRAM="alacritty"
+        WINDOW_CLASS="Alacritty"
+        ;;
+    chrome)
+        PROGRAM="google-chrome-stable"
+        WINDOW_CLASS="Google-chrome"
+        ;;
+    code)
+        PROGRAM="code"
+        WINDOW_CLASS="Code"
+        ;;
+    qq)
+        PROGRAM="linuxqq"
+        WINDOW_CLASS="QQ"
+        ;;
+    *)
+        echo "Usage: $0 {alacritty|chrome|code|qq}"
+        exit 1
+        ;;
+esac
+
+# Check if the program is running
+if ! pgrep -x "$1" > /dev/null; then
+    $PROGRAM &
+else
+    wmctrl -x -a "$WINDOW_CLASS"
+fi
