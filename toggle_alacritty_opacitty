@@ -1,16 +1,12 @@
 #!/usr/bin/env bash
 
-alacritty_config_path=~/.config/alacritty/alacritty.yml
+alacritty_config_path=~/.config/alacritty/alacritty.toml
 
 if [ -h $alacritty_config_path ]; then
   alacritty_config_path=$(readlink $alacritty_config_path)
 fi
 
-if [ ! -f $alacritty_config_path ]; then
-    osascript -e 'display notification "alacritty.yml does not exist" with title "alacritty"' && exit 0
-fi
-
-opacity=$(awk '$1 == "opacity:" {print $2; exit}' \
+opacity=$(awk '$1 == "opacity" {print $3; exit}' \
     $alacritty_config_path)
 
 case $opacity in
@@ -25,5 +21,5 @@ case $opacity in
     ;;
 esac
 
-sed -i '' "s/opacity: $opacity/opacity: $toggle_opacity/" \
+sed -i "s/opacity = $opacity/opacity = $toggle_opacity/" \
    $alacritty_config_path
