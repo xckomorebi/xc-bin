@@ -6,12 +6,15 @@ if [ -h $alacritty_config_path ]; then
   alacritty_config_path=$(readlink $alacritty_config_path)
 fi
 
-opacity=$(awk '$1 == "opacity" {print $3; exit}' \
-    $alacritty_config_path)
+if [ ! -f $alacritty_config_path ]; then
+    osascript -e 'display notification "alacritty.toml does not exist" with title "alacritty"' && exit 0
+fi
+
+opacity=$(awk '$1 == "opacity" {print $3; exit}' $alacritty_config_path)
 
 case $opacity in
   1)
-    toggle_opacity=0.64
+    toggle_opacity=0.70
     ;;
   0.0)
     exit 0
@@ -21,5 +24,5 @@ case $opacity in
     ;;
 esac
 
-sed -i "s/opacity = $opacity/opacity = $toggle_opacity/" \
+sed -i '' "s/opacity = $opacity/opacity = $toggle_opacity/" \
    $alacritty_config_path
