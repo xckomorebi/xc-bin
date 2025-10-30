@@ -1,0 +1,50 @@
+#! /bin/bash
+
+REPO=""
+BASE_URL="https://gitlab.infini-ai.com/infini-cloud"
+
+usage() {
+    cat << EOF
+Usage: $0 [OPTIONS] <repository>
+EOF
+}
+
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        -h|--help)
+            usage
+            exit 0
+            ;;
+        -p|--pipeline)
+            PAGE="-/pipelines"
+            ;;
+        -m|--merge)
+            PAGE="-/merge_requests"
+            ;;
+        -t|--tags)
+            PAGE="-/tags"
+            ;;
+        -*)
+            echo "Unknown option: $1" >&2
+            exit 1
+            ;;
+        *)
+            if [ -z "$REPO" ]; then
+                REPO="$1"
+            else
+                echo "Multiple repositories specified: $REPO and $1" >&2
+                exit 1
+            fi
+            ;;
+    esac
+    shift
+done
+
+if [ -z "$REPO" ]; then
+    REPO=$(basename $(pwd))
+fi
+
+TARGET_URL="$BASE_URL/$REPO/$PAGE"
+
+open $TARGET_URL
+
