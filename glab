@@ -1,11 +1,23 @@
 #! /bin/bash
 
 REPO=""
-BASE_URL="https://gitlab.infini-ai.com/infini-cloud"
+SUB_PROJECT="infini-cloud"
+BASE_URL="https://gitlab.infini-ai.com"
 
 usage() {
     cat << EOF
 Usage: $0 [OPTIONS] <repository>
+
+Opens a GitLab repository in the browser.
+
+OPTIONS:
+    -h, --help      Show this help message
+    -p, --pipeline  Open the pipelines page
+    -m, --merge     Open the merge requests page
+    -t, --tags      Open the tags page
+
+ARGUMENTS:
+    <repository>    Repository name (optional if in a git repository)
 EOF
 }
 
@@ -41,10 +53,20 @@ while [[ $# -gt 0 ]]; do
 done
 
 if [ -z "$REPO" ]; then
-    REPO=$(basename $(pwd))
+    # Try to get repository path from git remote
+    if REMOTE_URL=$(git remote get-url origin 2>/dev/null); then
+        # Extract path from git remote URL
+        # Handle both https://gitlab.infini-ai.com/path/repo.git and git@gitlab.infini-ai.com:path/repo.git
+        REPO_PATH=$(echo "$REMOTE_URL" | sed -E 's|^.*gitlab\.infini-ai\.com[:/]||; s|\.git$||')
+        TARGET_URL="$BASE_URL/$REPO_PATH/$PAGE"
+    else
+        # Fall back to using directory name
+        REPO=$(basename $(pwd))
+        TARGET_URL="$BASE_URL/$SUB_PROJECT/$REPO/$PAGE"
+    fi
+else
+    TARGET_URL="$BASE_URL/$SUB_PROJECT/$REPO/$PAGE"
 fi
-
-TARGET_URL="$BASE_URL/$REPO/$PAGE"
 
 open $TARGET_URL
 
