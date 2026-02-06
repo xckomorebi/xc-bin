@@ -2,19 +2,21 @@
 
 REPO=""
 SUB_PROJECT="infini-cloud"
-BASE_URL="https://gitlab.infini-ai.com"
+GITLAB_BASE_URL="https://gitlab.infini-ai.com"
+PLATFORM=""
 
 usage() {
     cat << EOF
 Usage: $0 [OPTIONS] <repository>
 
-Opens a GitLab repository in the browser.
+Opens a GitLab or GitHub repository in the browser.
+Automatically detects the platform from git remote.
 
 OPTIONS:
     -h, --help      Show this help message
-    -p, --pipeline  Open the pipelines page
-    -m, --merge     Open the merge requests page
-    -t, --tags      Open the tags page
+    -p, --pipeline  Open the pipelines/actions page
+    -m, --merge     Open the merge/pull requests page
+    -t, --tags      Open the tags/releases page
 
 ARGUMENTS:
     <repository>    Repository name (optional if in a git repository)
@@ -28,13 +30,13 @@ while [[ $# -gt 0 ]]; do
             exit 0
             ;;
         -p|--pipeline)
-            PAGE="-/pipelines"
+            PAGE="pipelines"
             ;;
         -m|--merge)
-            PAGE="-/merge_requests"
+            PAGE="merge"
             ;;
         -t|--tags)
-            PAGE="-/tags"
+            PAGE="tags"
             ;;
         -*)
             echo "Unknown option: $1" >&2
@@ -55,17 +57,69 @@ done
 if [ -z "$REPO" ]; then
     # Try to get repository path from git remote
     if REMOTE_URL=$(git remote get-url origin 2>/dev/null); then
-        # Extract path from git remote URL
-        # Handle both https://gitlab.infini-ai.com/path/repo.git and git@gitlab.infini-ai.com:path/repo.git
-        REPO_PATH=$(echo "$REMOTE_URL" | sed -E 's|^.*gitlab\.infini-ai\.com[:/]||; s|\.git$||')
-        TARGET_URL="$BASE_URL/$REPO_PATH/$PAGE"
+        # Detect platform from remote URL
+        if echo "$REMOTE_URL" | grep -q "github\.com"; then
+            PLATFORM="github"
+            # Extract owner/repo from GitHub URL
+            # Handle both https://github.com/owner/repo.git and git@github.com:owner/repo.git
+            REPO_PATH=$(echo "$REMOTE_URL" | sed -E 's|^.*github\.com[:/]||; s|\.git$||')
+            BASE_URL="https://github.com"
+        elif echo "$REMOTE_URL" | grep -q "gitlab"; then
+            PLATFORM="gitlab"
+            # Extract path from GitLab URL
+            # Handle both https://gitlab.infini-ai.com/path/repo.git and git@gitlab.infini-ai.com:path/repo.git
+            REPO_PATH=$(echo "$REMOTE_URL" | sed -E 's|^.*gitlab[^:/]*[:/]||; s|\.git$||')
+            BASE_URL="$GITLAB_BASE_URL"
+        else
+            echo "Unsupported git remote: $REMOTE_URL" >&2
+            exit 1
+        fi
     else
-        # Fall back to using directory name
+        # Fall back to GitLab with directory name
+        PLATFORM="gitlab"
         REPO=$(basename $(pwd))
-        TARGET_URL="$BASE_URL/$SUB_PROJECT/$REPO/$PAGE"
+        REPO_PATH="$SUB_PROJECT/$REPO"
+        BASE_URL="$GITLAB_BASE_URL"
     fi
 else
-    TARGET_URL="$BASE_URL/$SUB_PROJECT/$REPO/$PAGE"
+    # When REPO is specified, default to GitLab
+    PLATFORM="gitlab"
+    REPO_PATH="$SUB_PROJECT/$REPO"
+    BASE_URL="$GITLAB_BASE_URL"
+fi
+
+# Construct URL based on platform
+if [ "$PLATFORM" = "github" ]; then
+    case "$PAGE" in
+        "pipelines")
+            TARGET_URL="$BASE_URL/$REPO_PATH/actions"
+            ;;
+        "merge")
+            TARGET_URL="$BASE_URL/$REPO_PATH/pulls"
+            ;;
+        "tags")
+            TARGET_URL="$BASE_URL/$REPO_PATH/releases"
+            ;;
+        *)
+            TARGET_URL="$BASE_URL/$REPO_PATH"
+            ;;
+    esac
+else
+    # GitLab
+    case "$PAGE" in
+        "pipelines")
+            TARGET_URL="$BASE_URL/$REPO_PATH/-/pipelines"
+            ;;
+        "merge")
+            TARGET_URL="$BASE_URL/$REPO_PATH/-/merge_requests"
+            ;;
+        "tags")
+            TARGET_URL="$BASE_URL/$REPO_PATH/-/tags"
+            ;;
+        *)
+            TARGET_URL="$BASE_URL/$REPO_PATH"
+            ;;
+    esac
 fi
 
 open $TARGET_URL
