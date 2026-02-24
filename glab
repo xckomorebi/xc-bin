@@ -4,16 +4,18 @@ REPO=""
 SUB_PROJECT="infini-cloud"
 GITLAB_BASE_URL="https://gitlab.infini-ai.com"
 PLATFORM=""
+REMOTE="origin"
 
 usage() {
     cat << EOF
-Usage: $0 [OPTIONS] <repository>
+    Usage: $(basename $0) [OPTIONS] <repository>
 
 Opens a GitLab or GitHub repository in the browser.
 Automatically detects the platform from git remote.
 
 OPTIONS:
     -h, --help      Show this help message
+    -o <remote>     Use a specific git remote (default: origin)
     -p, --pipeline  Open the pipelines/actions page
     -m, --merge     Open the merge/pull requests page
     -t, --tags      Open the tags/releases page
@@ -28,6 +30,14 @@ while [[ $# -gt 0 ]]; do
         -h|--help)
             usage
             exit 0
+            ;;
+        -o)
+            shift
+            if [[ $# -eq 0 ]]; then
+                echo "Error: -o requires a remote name" >&2
+                exit 1
+            fi
+            REMOTE="$1"
             ;;
         -p|--pipeline)
             PAGE="pipelines"
@@ -56,7 +66,7 @@ done
 
 if [ -z "$REPO" ]; then
     # Try to get repository path from git remote
-    if REMOTE_URL=$(git remote get-url origin 2>/dev/null); then
+    if REMOTE_URL=$(git remote get-url "$REMOTE" 2>/dev/null); then
         # Detect platform from remote URL
         if echo "$REMOTE_URL" | grep -q "github\.com"; then
             PLATFORM="github"
@@ -77,8 +87,7 @@ if [ -z "$REPO" ]; then
     else
         # Fall back to GitLab with directory name
         PLATFORM="gitlab"
-        REPO=$(basename $(pwd))
-        REPO_PATH="$SUB_PROJECT/$REPO"
+        REPO=$(basename $(pwd)) REPO_PATH="$SUB_PROJECT/$REPO"
         BASE_URL="$GITLAB_BASE_URL"
     fi
 else
