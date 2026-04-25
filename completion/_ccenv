@@ -1,0 +1,31 @@
+#compdef ccenv
+
+_ccenv() {
+    local -a subcmds
+    subcmds=(enable disable status list edit)
+
+    if (( CURRENT == 2 )); then
+        _describe 'command' subcmds
+        return
+    fi
+
+    case "$words[2]" in
+        enable)
+            if (( CURRENT == 3 )); then
+                local -a profiles
+                local profiles_file="$HOME/.claude/profiles.toml"
+                if [[ -f "$profiles_file" ]]; then
+                    profiles=(${(f)"$(python3 -c "
+import tomllib
+with open('$profiles_file', 'rb') as f:
+    for k in tomllib.load(f):
+        print(k)
+" 2>/dev/null)"})
+                fi
+                _describe 'profile' profiles
+            fi
+            ;;
+    esac
+}
+
+_ccenv "$@"

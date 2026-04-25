@@ -1,0 +1,207 @@
+#!/usr/bin/env python3
+"""Manage Claude Code env profiles (base URL, auth token, models)."""
+
+import argparse
+import json
+import os
+import subprocess
+import sys
+import tomllib
+
+SETTINGS_PATH = os.path.expanduser("~/.claude/settings.json")
+PROFILES_PATH = os.path.expanduser("~/.claude/profiles.toml")
+CURRENT_PROFILE_PATH = os.path.expanduser("~/.claude/current_profile")
+
+# Env keys managed by profiles
+PROFILE_KEYS = [
+    "ANTHROPIC_BASE_URL",
+    "ANTHROPIC_AUTH_TOKEN",
+    "ANTHROPIC_DEFAULT_OPUS_MODEL",
+    "ANTHROPIC_DEFAULT_SONNET_MODEL",
+    "ANTHROPIC_DEFAULT_HAIKU_MODEL",
+]
+
+
+def load_settings():
+    if not os.path.exists(SETTINGS_PATH):
+        return {}
+    with open(SETTINGS_PATH) as f:
+        return json.load(f)
+
+
+def save_settings(data):
+    with open(SETTINGS_PATH, "w") as f:
+        json.dump(data, f, indent=2)
+        f.write("\n")
+
+
+def load_profiles():
+    if not os.path.exists(PROFILES_PATH):
+        return {}
+    with open(PROFILES_PATH, "rb") as f:
+        return tomllib.load(f)
+
+
+def read_current_profile():
+    if not os.path.exists(CURRENT_PROFILE_PATH):
+        return None
+    with open(CURRENT_PROFILE_PATH) as f:
+        return f.read().strip()
+
+
+def write_current_profile(name):
+    with open(CURRENT_PROFILE_PATH, "w") as f:
+        f.write(name if name else "")
+
+
+def cmd_enable(args):
+    name = args.profile
+    profiles = load_profiles()
+    if name not in profiles:
+        print(f"Profile '{name}' not found in {PROFILES_PATH}")
+        sys.exit(1)
+
+    profile = profiles[name]
+    settings = load_settings()
+    env = settings.setdefault("env", {})
+
+    # Remove all existing profile keys first
+    for key in PROFILE_KEYS:
+        env.pop(key, None)
+
+    # Set new profile values
+    mapping = {
+        "base_url": "ANTHROPIC_BASE_URL",
+        "auth_token": "ANTHROPIC_AUTH_TOKEN",
+        "opus_model": "ANTHROPIC_DEFAULT_OPUS_MODEL",
+        "sonnet_model": "ANTHROPIC_DEFAULT_SONNET_MODEL",
+        "haiku_model": "ANTHROPIC_DEFAULT_HAIKU_MODEL",
+    }
+    for toml_key, env_key in mapping.items():
+        if toml_key in profile:
+            env[env_key] = str(profile[toml_key])
+
+    save_settings(settings)
+    write_current_profile(name)
+    print(f"Enabled profile '{name}'")
+
+
+def cmd_disable(_args):
+    settings = load_settings()
+    env = settings.setdefault("env", {})
+    removed = []
+    for key in PROFILE_KEYS:
+        if key in env:
+            del env[key]
+            removed.append(key)
+
+    if removed:
+        save_settings(settings)
+    write_current_profile(None)
+    print("Profile disabled")
+
+
+def cmd_status(_args):
+    current = read_current_profile()
+    if current:
+        profiles = load_profiles()
+        if current not in profiles:
+            print(f"Active: {current} (profile definition missing)")
+        else:
+            print(f"Active: {current}")
+            profile = profiles[current]
+            for key, val in profile.items():
+                print(f"  {key}: {val}")
+    else:
+        print("No profile active")
+
+
+def cmd_list(_args):
+    profiles = load_profiles()
+    if not profiles:
+        print(f"No profiles defined in {PROFILES_PATH}")
+        return
+    current = read_current_profile()
+    for name, profile in profiles.items():
+        marker = " *" if name == current else ""
+        url = profile.get("base_url", "?")
+        print(f"  {name}{marker}  ({url})")
+    if current:
+        print(f"  * = active")
+
+
+def cmd_edit(_args):
+    if not os.path.exists(PROFILES_PATH):
+        print(f"{PROFILES_PATH} does not exist yet")
+        sys.exit(1)
+    editor = os.environ.get("EDITOR", "vim")
+    subprocess.run([editor, PROFILES_PATH])
+
+
+COMPLETION_SCRIPT = r'''#compdef ccenv
+
+_ccenv() {
+    local -a subcmds
+    subcmds=(enable disable status list edit)
+
+    if (( CURRENT == 2 )); then
+        _describe 'command' subcmds
+        return
+    fi
+
+    case "$words[2]" in
+        enable)
+            if (( CURRENT == 3 )); then
+                local -a profiles
+                local profiles_file="$HOME/.claude/profiles.toml"
+                if [[ -f "$profiles_file" ]]; then
+                    profiles=(${(f)"$(python3 -c "
+import tomllib
+with open('$profiles_file', 'rb') as f:
+    for k in tomllib.load(f):
+        print(k)
+" 2>/dev/null)"})
+                fi
+                _describe 'profile' profiles
+            fi
+            ;;
+    esac
+}
+
+_ccenv "$@"
+'''
+
+
+def cmd_completion(_args):
+    print(COMPLETION_SCRIPT)
+
+
+def main():
+    parser = argparse.ArgumentParser(prog="ccenv", description="Manage Claude Code env profiles")
+    sub = parser.add_subparsers(dest="command", required=True)
+
+    p_enable = sub.add_parser("enable", help="Activate a profile")
+    p_enable.add_argument("profile", help="Profile name")
+    p_enable.set_defaults(func=cmd_enable)
+
+    p_disable = sub.add_parser("disable", help="Deactivate the current profile")
+    p_disable.set_defaults(func=cmd_disable)
+
+    p_status = sub.add_parser("status", help="Show the active profile")
+    p_status.set_defaults(func=cmd_status)
+
+    p_list = sub.add_parser("list", help="List all profiles")
+    p_list.set_defaults(func=cmd_list)
+
+    p_edit = sub.add_parser("edit", help="Edit profiles.toml")
+    p_edit.set_defaults(func=cmd_edit)
+
+    p_completion = sub.add_parser("completion", help="Output zsh completion script")
+    p_completion.set_defaults(func=cmd_completion)
+
+    args = parser.parse_args()
+    args.func(args)  # pyright: ignore[reportArgumentType]
+
+
+if __name__ == "__main__":
+    main()
