@@ -1,0 +1,42 @@
+#compdef glab
+
+# Completion script for glab - GitLab/GitHub repository browser
+
+_glab() {
+    local -a options
+    options=(
+        '(- *)'{-h,--help}'[Show help message]'
+        '(-o)-o+[Use a specific git remote]:remote name:_glab_remotes'
+        '(-p --pipeline)'{-p,--pipeline}'[Open the pipelines/actions page]'
+        '(-m --merge)'{-m,--merge}'[Open the merge/pull requests page]'
+        '(-t --tags)'{-t,--tags}'[Open the tags/releases page]'
+        '*:repository name:_glab_repositories'
+    )
+
+    _arguments -s -S $options
+}
+
+_glab_remotes() {
+    local -a remotes
+    remotes=(${(f)"$(git remote 2>/dev/null)"})
+    _describe 'remote' remotes
+}
+
+_glab_repositories() {
+    # Try to get repository name from current directory or git remote
+    local current_repo
+
+    # If in a git repository, offer the current repo name
+    if git rev-parse --git-dir &>/dev/null; then
+        current_repo=$(basename $(git rev-parse --show-toplevel 2>/dev/null))
+        if [[ -n "$current_repo" ]]; then
+            _message "repository name (current: $current_repo)"
+        else
+            _message "repository name"
+        fi
+    else
+        _message "repository name"
+    fi
+}
+
+_glab "$@"
