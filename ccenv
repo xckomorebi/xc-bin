@@ -54,22 +54,14 @@ def write_current_profile(name):
         f.write(name if name else "")
 
 
-def cmd_enable(args):
-    name = args.profile
-    profiles = load_profiles()
-    if name not in profiles:
-        print(f"Profile '{name}' not found in {PROFILES_PATH}")
-        sys.exit(1)
-
+def cmd_enable_core(name, profiles):
     profile = profiles[name]
     settings = load_settings()
     env = settings.setdefault("env", {})
 
-    # Remove all existing profile keys first
     for key in PROFILE_KEYS:
         env.pop(key, None)
 
-    # Set new profile values
     mapping = {
         "base_url": "ANTHROPIC_BASE_URL",
         "auth_token": "ANTHROPIC_AUTH_TOKEN",
@@ -84,6 +76,15 @@ def cmd_enable(args):
     save_settings(settings)
     write_current_profile(name)
     print(f"Enabled profile '{name}'")
+
+
+def cmd_enable(args):
+    name = args.profile
+    profiles = load_profiles()
+    if name not in profiles:
+        print(f"Profile '{name}' not found in {PROFILES_PATH}")
+        sys.exit(1)
+    cmd_enable_core(name, profiles)
 
 
 def cmd_disable(_args):
@@ -136,6 +137,15 @@ def cmd_edit(_args):
         sys.exit(1)
     editor = os.environ.get("EDITOR", "vim")
     subprocess.run([editor, PROFILES_PATH])
+
+    current = read_current_profile()
+    if current:
+        # Re-enable current profile to pick up any edits
+        profiles = load_profiles()
+        if current in profiles:
+            cmd_enable_core(current, profiles)
+        else:
+            print(f"Warning: profile '{current}' no longer exists, not re-enabling")
 
 
 COMPLETION_SCRIPT = r'''#compdef ccenv
