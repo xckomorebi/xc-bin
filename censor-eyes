@@ -1,0 +1,187 @@
+#!/usr/bin/env python3
+"""Blur the eyes of every face in a video.
+
+Usage: censor-eyes <file_path> [--bar]
+
+Uses OpenCV's YuNet DNN face detector (yunet.onnx), which returns eye
+keypoints directly, and blurs a region around the eyes of each face. The last
+detection is held for a few frames so a momentary miss does not reveal the
+eyes. The original audio is re-muxed back in with ffmpeg.
+"""
+
+import os
+import shutil
+import subprocess
+import sys
+import tempfile
+import urllib.request
+from collections import deque
+from pathlib import Path
+
+import cv2
+import numpy as np
+
+MODEL = Path(__file__).with_name("yunet.onnx")
+MODEL_URL = (
+    "https://github.com/opencv/opencv_zoo/raw/main/"
+    "models/face_detection_yunet/face_detection_yunet_2023mar.onnx"
+)
+
+
+def ensure_model():
+    """Download the YuNet model next to this script if it is missing."""
+    if MODEL.exists():
+        return
+    print(f"Model not found; downloading from {MODEL_URL} ...")
+    tmp = MODEL.with_suffix(".onnx.part")
+    try:
+        urllib.request.urlretrieve(MODEL_URL, tmp)
+        tmp.replace(MODEL)  # atomic: only land the file once fully downloaded
+        print(f"Saved model to {MODEL}")
+    except Exception as e:
+        tmp.unlink(missing_ok=True)
+        print(f"error: failed to download model: {e}")
+        sys.exit(1)
+
+# ---- args -------------------------------------------------------------------
+prog = Path(sys.argv[0]).name
+pos = [a for a in sys.argv[1:] if not a.startswith("-")]
+flags = {a for a in sys.argv[1:] if a.startswith("-")}
+if len(pos) < 1:
+    print(f"usage: {prog} <file_path> [--bar]")
+    sys.exit(1)
+
+unknown = flags - {"--bar"}
+if unknown:
+    print(f"error: unknown flag(s): {' '.join(sorted(unknown))}")
+    print(f"usage: {prog} <file_path> [--bar]")
+    sys.exit(1)
+
+video_path = Path(pos[0])
+use_bar = "--bar" in flags  # solid black bar instead of blur
+if not video_path.exists():
+    print(f"error: {video_path} not found")
+    sys.exit(1)
+ensure_model()
+
+# ---- open input -------------------------------------------------------------
+cap = cv2.VideoCapture(str(video_path))
+if not cap.isOpened():
+    print(f"error: could not open {video_path}")
+    sys.exit(1)
+
+fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
+width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+print(f"Video: {width}x{height}, {fps:.2f}fps, {total_frames} frames")
+
+# ---- output paths -----------------------------------------------------------
+output_path = video_path.with_suffix(".censored" + video_path.suffix)
+tmp_fd, tmp_name = tempfile.mkstemp(suffix=".mp4")
+os.close(tmp_fd)  # we only need the path; OpenCV reopens it for writing
+tmp_video = Path(tmp_name)
+fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+out = cv2.VideoWriter(str(tmp_video), fourcc, fps, (width, height))
+
+# ---- detector ---------------------------------------------------------------
+detector = cv2.FaceDetectorYN.create(str(MODEL), "", (width, height), 0.6, 0.3, 5000)
+detector.setInputSize((width, height))
+
+# Persist recent eye boxes so dropped frames stay covered.
+PERSIST_FRAMES = 6
+recent = deque(maxlen=PERSIST_FRAMES)  # each item: list of (x1, y1, x2, y2)
+
+
+def eye_boxes(faces):
+    """Build a blur box per face covering both eyes from YuNet keypoints.
+
+    YuNet row layout: x, y, w, h, then 5 landmarks (x, y) pairs:
+    right-eye, left-eye, nose, right-mouth, left-mouth, then score.
+    """
+    boxes = []
+    for f in faces:
+        fw = f[2]
+        rex, rey = f[4], f[5]
+        lex, ley = f[6], f[7]
+        cx, cy = (rex + lex) / 2, (rey + ley) / 2
+        # Box wide enough to span both eyes with margin, tall enough for brows.
+        half_w = max(abs(lex - rex) / 2 + fw * 0.28, fw * 0.40)
+        half_h = max(fw * 0.20, 12)
+        x1 = int(max(0, cx - half_w))
+        x2 = int(min(width, cx + half_w))
+        y1 = int(max(0, cy - half_h))
+        y2 = int(min(height, cy + half_h))
+        if x2 > x1 and y2 > y1:
+            boxes.append((x1, y1, x2, y2))
+    return boxes
+
+
+def apply(frame, boxes):
+    for (x1, y1, x2, y2) in boxes:
+        region = frame[y1:y2, x1:x2]
+        if region.size == 0:
+            continue
+        if use_bar:
+            frame[y1:y2, x1:x2] = 0
+        else:
+            # Pixelate + blur: strong, irreversible obscuring.
+            small = cv2.resize(region, (8, 8), interpolation=cv2.INTER_LINEAR)
+            pix = cv2.resize(small, (region.shape[1], region.shape[0]),
+                             interpolation=cv2.INTER_NEAREST)
+            k = max(15, (min(region.shape[:2]) // 2) | 1)
+            frame[y1:y2, x1:x2] = cv2.GaussianBlur(pix, (k, k), 0)
+
+
+frame_count = 0
+while True:
+    ret, frame = cap.read()
+    if not ret:
+        break
+    frame_count += 1
+
+    _, faces = detector.detect(frame)
+    boxes = eye_boxes(faces if faces is not None else [])
+    recent.append(boxes)
+
+    # Union over the persistence window covers transient misses.
+    active = [b for fb in recent for b in fb]
+    apply(frame, active)
+
+    out.write(frame)
+    if frame_count % 30 == 0:
+        if total_frames > 0:
+            print(f"Processed {frame_count}/{total_frames} frames...")
+        else:
+            print(f"Processed {frame_count} frames...")
+
+cap.release()
+out.release()
+
+# ---- mux original audio back in ---------------------------------------------
+ffmpeg = shutil.which("ffmpeg")
+if ffmpeg:
+    cmd = [
+        ffmpeg, "-y",
+        "-i", str(tmp_video),
+        "-i", str(video_path),
+        "-c:v", "copy",
+        "-map", "0:v:0",
+        "-map", "1:a:0?",
+        "-c:a", "aac",
+        "-shortest",
+        str(output_path),
+    ]
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.returncode == 0:
+        tmp_video.unlink(missing_ok=True)
+    else:
+        print("ffmpeg mux failed; keeping video-only output.")
+        print(result.stderr[-500:])
+        shutil.move(str(tmp_video), str(output_path))
+else:
+    print("ffmpeg not found; output will have no audio.")
+    shutil.move(str(tmp_video), str(output_path))
+
+print(f"\nDone! Output saved to: {output_path}")
+print(f"Total frames processed: {frame_count}")
