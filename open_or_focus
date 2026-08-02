@@ -23,9 +23,26 @@ case "$1" in
         ;;
 esac
 
-# Check if the program is running
-if ! pgrep -x "$1" > /dev/null; then
-    $PROGRAM &
-else
-    wmctrl -x -a "$WINDOW_CLASS"
+# Launched from the keypun system service we arrive via root -> runuser and
+# inherit almost nothing - in particular no XAUTHORITY, so X clients fall back
+# to ~/.Xauthority, which is stale: the live cookie is a per-login
+# /tmp/xauth_XXXXXX that nothing static can name. Our own user manager tracks
+# the current session's values, so import whatever we are missing from there
+# instead of hardcoding paths. Only fills in unset vars, so an interactive
+# run keeps its own environment.
+export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+while IFS= read -r line; do
+    case "$line" in
+        DISPLAY=*|XAUTHORITY=*|DBUS_SESSION_BUS_ADDRESS=*)
+            name=${line%%=*}
+            [ -z "${!name:-}" ] && export "$line"
+            ;;
+    esac
+done < <(systemctl --user show-environment 2>/dev/null)
+
+# Focus an existing window, else start the program. Keying off the window
+# rather than the process name because the two often disagree - `pgrep -x qq`
+# never matches the actual `linuxqq` process, so QQ always relaunched.
+if ! wmctrl -x -a "$WINDOW_CLASS" 2>/dev/null; then
+    exec "$PROGRAM"
 fi
