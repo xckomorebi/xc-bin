@@ -1,27 +1,22 @@
 #!/bin/bash
+set -euo pipefail
 
-case "$1" in
-    alacritty)
-        PROGRAM="alacritty"
-        WINDOW_CLASS="Alacritty"
-        ;;
-    chrome)
-        PROGRAM="google-chrome-stable"
-        WINDOW_CLASS="Google-chrome"
-        ;;
-    code)
-        PROGRAM="code"
-        WINDOW_CLASS="Code"
-        ;;
-    qq)
-        PROGRAM="linuxqq"
-        WINDOW_CLASS="QQ"
-        ;;
-    *)
-        echo "Usage: $0 {alacritty|chrome|code|qq}"
-        exit 1
-        ;;
-esac
+# short name -> "binary window-class". wmctrl matches the class case
+# insensitively as a substring, so the casing here only has to be close.
+declare -A APPS=(
+    [alacritty]="alacritty Alacritty"
+    [chrome]="google-chrome-stable Google-chrome"
+    [code]="code Code"
+    [feishu]="feishu feishu"
+    [qq]="linuxqq QQ"
+)
+
+key=${1:-}
+if [ -z "$key" ] || [ -z "${APPS[$key]:-}" ]; then
+    printf 'Usage: %s {%s}\n' "$0" "$(printf '%s\n' "${!APPS[@]}" | sort | paste -sd'|')" >&2
+    exit 1
+fi
+read -r PROGRAM WINDOW_CLASS <<<"${APPS[$key]}"
 
 # Launched from the keypun system service we arrive via root -> runuser and
 # inherit almost nothing - in particular no XAUTHORITY, so X clients fall back
